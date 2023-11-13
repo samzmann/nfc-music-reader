@@ -2,6 +2,21 @@ import digitalio
 import rotaryio
 
 class RotaryEncoder():
+    def __init__(self, clkPin, dtPin) -> None:
+
+        self.encoder = rotaryio.IncrementalEncoder(clkPin, dtPin, divisor=2)
+        
+        self.prevRotaryVal = 0
+        self.prevButtonVal = None
+
+    def listenToRotation(self, onRotate):
+        if self.encoder.position is not self.prevRotaryVal:
+            isRotatingClockwise = self.encoder.position > self.prevRotaryVal
+            onRotate(isRotatingClockwise)
+            self.prevRotaryVal = self.encoder.position
+
+
+class RotaryEncoderWithButton():
     def __init__(self, clkPin, dtPin, swPin, onRotate, onCLick) -> None:
 
         self.encoder = rotaryio.IncrementalEncoder(clkPin, dtPin, divisor=2)
