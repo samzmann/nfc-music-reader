@@ -1,32 +1,28 @@
 import asyncio
 import board
 import digitalio
-from analogio import AnalogIn
 import keypad
 import busio
-import displayio
-import terminalio
 import countio
 import time
-from adafruit_displayio_ssd1306 import SSD1306
-from adafruit_display_text import label
 from adafruit_pn532.i2c import PN532_I2C
 
 from effect_control import EffectControl
 from rotary_encoder import RotaryEncoder
+from main_display import MainDisplay
 
 # ##########################################################
 # ControllerData
 #
 
 class ControllerData():
-    def __init__(self, initial_interval, onChangeValue, onChangeMode, onChangePotValue):
+    def __init__(self, initial_interval, on_updt_mode, on_updt_fx_1, on_updt_fx_2):
         self.mode = "PLAY"
         self.value = initial_interval
         self.pot_value = 0
-        self.onChangeValue = onChangeValue
-        self.onChangeMode = onChangeMode
-        self.onChangePotValue = onChangePotValue
+        self.on_updt_mode = on_updt_mode
+        self.on_updt_fx_1 = on_updt_fx_1
+        self.on_updt_fx_2 = on_updt_fx_2
         self.counter = countio.Counter(board.GP17)
         self.last_card_timestamp = time.monotonic()
         self.last_card_id = None
@@ -37,19 +33,19 @@ class ControllerData():
             self.value += 1
         else: 
             self.value -= 1
-        self.onChangeValue(self.value)
+        self.on_updt_fx_2(self.value)
 
     def changeMode(self):
         if self.mode == "PLAY":
             self.mode = "WRITE"
         else:
             self.mode = "PLAY"
-        self.onChangeMode(self.mode)
+        self.on_updt_mode(self.mode)
 
     def changePotValue(self, potValue):
         if potValue != self.pot_value:
             self.pot_value = potValue
-            self.onChangePotValue(self.pot_value)
+            self.on_updt_fx_1(self.pot_value)
 
 
 # ##########################################################
@@ -81,35 +77,7 @@ async def poll_effect_controls(effect_controls, controllerData: ControllerData):
 # Display
 #
 
-def init_display():
-    displayio.release_displays()
-
-    screen_width = 128
-    screen_height = 64
-
-    i2c_1 = busio.I2C(board.GP7, board.GP6)
-    display_bus = displayio.I2CDisplay(i2c_1, device_address=0x3C)
-    display = SSD1306(display_bus, width=screen_width, height=screen_height)
-    display.root_group.hidden = True
-
-    # Make the display context
-    splash = displayio.Group()
-    display.show(splash)
-
-    value_text_area = label.Label(terminalio.FONT, text=" "*21, x=0, y=5)
-    value_text_area.text = f"Value: {0}"
-    splash.append(value_text_area)
-
-    mode_text_area = label.Label(terminalio.FONT, text=" "*21, x=0, y=20)
-    mode_text_area.text = f"Mode: PLAY"
-    splash.append(mode_text_area)
-
-    pot_text_area = label.Label(terminalio.FONT, text=" "*21, x=0, y=35)
-    pot_text_area.text = f"Pot: 0"
-    splash.append(pot_text_area)
-
-    return (value_text_area, mode_text_area, pot_text_area)
-
+mainDisplay = MainDisplay()
 
 # ##########################################################
 # Blink
@@ -191,8 +159,6 @@ async def catch_interrupt(controllerData: ControllerData, led):
 async def main():
     print('main() running')
 
-    (value_text_area, mode_text_area, pot_text_area) = init_display()
-
     fx1 = EffectControl(board.GP28, 200, 65000)
 
     all_fx = [
@@ -202,17 +168,21 @@ async def main():
     led = digitalio.DigitalInOut(board.GP25)
     led.switch_to_output()
 
-    def writeControllerValue(v):
-        value_text_area.text = f"Value: {v}"
+    def updt_mode_display(m):
+            mainDisplay.set_text_area_value('mode', m)
 
-    def writeControllerMode(m):
-            mode_text_area.text = f"Mode: {m}"
+    def updt_fx_1_display(v):
+            mainDisplay.set_text_area_value('fx_1', v)
 
-    def writeControllerPotValue(v):
-            pot_text_area.text = f"Pot: {v}"
+    def updt_fx_2_display(v):
+        mainDisplay.set_text_area_value('fx_2', v)
 
-    controllerData = ControllerData(0, writeControllerValue, writeControllerMode, writeControllerPotValue)
-
+    controllerData = ControllerData(
+        0,
+        updt_mode_display,
+        updt_fx_1_display,
+        updt_fx_2_display,
+        )
 
     button_task = asyncio.create_task(on_button_press(led, controllerData))
     blink_task = asyncio.create_task(blink(led))
