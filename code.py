@@ -152,15 +152,12 @@ async def main():
     led.switch_to_output()
 
     def writeControllerValue(v):
-        print('writeControllerValue', v)
         value_text_area.text = f"Value: {v}"
 
     def writeControllerMode(m):
-            print('writeControllerwriteControllerMode', m)
             mode_text_area.text = f"Mode: {m}"
 
     def writeControllerPotValue(v):
-            print('writeControllerPotValue', v)
             pot_text_area.text = f"Pot: {v}"
 
     controllerData = ControllerData(0, writeControllerValue, writeControllerMode, writeControllerPotValue)
