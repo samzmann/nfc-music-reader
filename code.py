@@ -6,9 +6,12 @@ import keypad
 import busio
 import displayio
 import terminalio
+import countio
+import time
 from adafruit_displayio_ssd1306 import SSD1306
 from adafruit_display_text import label
 from rotary_encoder import RotaryEncoder
+from adafruit_pn532.i2c import PN532_I2C
 
 # ##########################################################
 # ControllerData
@@ -22,6 +25,9 @@ class ControllerData():
         self.onChangeValue = onChangeValue
         self.onChangeMode = onChangeMode
         self.onChangePotValue = onChangePotValue
+        self.counter = countio.Counter(board.GP17)
+        self.last_card_timestamp = time.monotonic()
+        self.last_card_id = None
 
     def changeValue(self, increment):
         print('changeValue', increment)
@@ -121,7 +127,7 @@ async def on_button_press(led, controllerData: ControllerData):
                 if key_event.pressed:
                     print("button pressed")
                     is_blinking = not is_blinking
-                    led.value = 0
+                    led.value = 1
                     controllerData.changeMode()
 
             await asyncio.sleep(0)
@@ -132,10 +138,49 @@ async def blink(led):
             led.value = not led.value
             await asyncio.sleep(1)
         else:
-            if led.value:
-                led.value = 0
+            if not led.value:
+                led.value = 1
             await asyncio.sleep(0)
 
+# ##########################################################
+# NFC
+#
+
+i2c_0 = busio.I2C(board.GP5, board.GP4)
+
+pn532 = PN532_I2C(
+    i2c_0, 
+    debug=False,
+    irq=board.GP17
+    )
+
+pn532.SAM_configuration()
+
+pn532.listen_for_passive_target()
+
+async def catch_interrupt(controllerData: ControllerData, led):
+    global is_blinking
+
+    while True:
+        if controllerData.counter.count > 0:
+            print('must read card', controllerData.counter.count)
+            uid = pn532.get_passive_target()
+            cardIdString = None
+            if uid is not None:
+                print("UID:", ''.join(hex(i) for i in uid))
+                cardIdString = ''.join(hex(i) for i in uid)
+                controllerData.last_card_id = cardIdString
+            pn532.listen_for_passive_target()
+            controllerData.counter.reset()
+            controllerData.last_card_timestamp = time.monotonic()
+            led.value = 1
+            is_blinking = False
+        elif time.monotonic() > controllerData.last_card_timestamp + 0.5 and not is_blinking:
+            is_blinking = True
+            print(f'card {controllerData.last_card_id} lost')
+            controllerData.last_card_id = None
+            
+        await asyncio.sleep(0)
 
 # ##########################################################
 # main
@@ -167,12 +212,14 @@ async def main():
     blink_task = asyncio.create_task(blink(led))
     rotary_task = asyncio.create_task(rotary_listen(controllerData))
     potentiometer_task = asyncio.create_task(pot_listen(potentiometer, controllerData))
+    interrupt_task = asyncio.create_task(catch_interrupt(controllerData, led))
     
     await asyncio.gather(
         button_task,
         blink_task,
         rotary_task,
-        potentiometer_task
+        potentiometer_task,
+        interrupt_task
         )
     
 
