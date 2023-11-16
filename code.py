@@ -10,8 +10,10 @@ import countio
 import time
 from adafruit_displayio_ssd1306 import SSD1306
 from adafruit_display_text import label
-from rotary_encoder import RotaryEncoder
 from adafruit_pn532.i2c import PN532_I2C
+
+from effect_control import EffectControl
+from rotary_encoder import RotaryEncoder
 
 # ##########################################################
 # ControllerData
@@ -65,14 +67,14 @@ async def rotary_listen(controllerData: ControllerData):
         await asyncio.sleep(0)
 
 # ##########################################################
-# Potentiometer
+# Effect controls (potentiometers and other analog input devices)
 #
 
-async def pot_listen(potentiometer: AnalogIn, controllerData: ControllerData):        
+async def poll_effect_controls(effect_controls, controllerData: ControllerData):
     while True:
-        pot_val = potentiometer.value
-        controllerData.changePotValue(pot_val)
-
+        for fx_device in effect_controls:
+            fx1_val = fx_device.get_value()
+            controllerData.changePotValue(fx1_val)
         await asyncio.sleep(0.2)
 
 # ##########################################################
@@ -191,7 +193,11 @@ async def main():
 
     (value_text_area, mode_text_area, pot_text_area) = init_display()
 
-    potentiometer = AnalogIn(board.GP28)
+    fx1 = EffectControl(board.GP28, 200, 65000)
+
+    all_fx = [
+        fx1
+    ]
 
     led = digitalio.DigitalInOut(board.GP25)
     led.switch_to_output()
@@ -211,14 +217,14 @@ async def main():
     button_task = asyncio.create_task(on_button_press(led, controllerData))
     blink_task = asyncio.create_task(blink(led))
     rotary_task = asyncio.create_task(rotary_listen(controllerData))
-    potentiometer_task = asyncio.create_task(pot_listen(potentiometer, controllerData))
+    poll_fx_controls_task = asyncio.create_task(poll_effect_controls(all_fx, controllerData))
     interrupt_task = asyncio.create_task(catch_interrupt(controllerData, led))
     
     await asyncio.gather(
         button_task,
         blink_task,
         rotary_task,
-        potentiometer_task,
+        poll_fx_controls_task,
         interrupt_task
         )
     
