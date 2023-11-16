@@ -2,10 +2,6 @@ import asyncio
 import board
 import digitalio
 import keypad
-import busio
-import countio
-import time
-from adafruit_pn532.i2c import PN532_I2C
 
 from effect_control import EffectControl
 from rotary_encoder import RotaryEncoder
@@ -23,9 +19,6 @@ class ControllerData():
         self.on_updt_mode = on_updt_mode
         self.on_updt_fx_1 = on_updt_fx_1
         self.on_updt_fx_2 = on_updt_fx_2
-        self.counter = countio.Counter(board.GP17)
-        self.last_card_timestamp = time.monotonic()
-        self.last_card_id = None
 
     def changeValue(self, increment):
         print('changeValue', increment)
@@ -116,40 +109,13 @@ async def blink(led):
 # NFC
 #
 
-i2c_0 = busio.I2C(board.GP5, board.GP4)
+from nfc_reader import NfcReader
 
-pn532 = PN532_I2C(
-    i2c_0, 
-    debug=False,
-    irq=board.GP17
-    )
+nfcReader = NfcReader()
 
-pn532.SAM_configuration()
-
-pn532.listen_for_passive_target()
-
-async def catch_interrupt(controllerData: ControllerData, led):
-    global is_blinking
-
+async def check_nfc_card():
     while True:
-        if controllerData.counter.count > 0:
-            print('must read card', controllerData.counter.count)
-            uid = pn532.get_passive_target()
-            cardIdString = None
-            if uid is not None:
-                print("UID:", ''.join(hex(i) for i in uid))
-                cardIdString = ''.join(hex(i) for i in uid)
-                controllerData.last_card_id = cardIdString
-            pn532.listen_for_passive_target()
-            controllerData.counter.reset()
-            controllerData.last_card_timestamp = time.monotonic()
-            led.value = 1
-            is_blinking = False
-        elif time.monotonic() > controllerData.last_card_timestamp + 0.5 and not is_blinking:
-            is_blinking = True
-            print(f'card {controllerData.last_card_id} lost')
-            controllerData.last_card_id = None
-            
+        nfcReader.wait_for_card()
         await asyncio.sleep(0)
 
 # ##########################################################
@@ -188,15 +154,14 @@ async def main():
     blink_task = asyncio.create_task(blink(led))
     rotary_task = asyncio.create_task(rotary_listen(controllerData))
     poll_fx_controls_task = asyncio.create_task(poll_effect_controls(all_fx, controllerData))
-    interrupt_task = asyncio.create_task(catch_interrupt(controllerData, led))
+    read_nfc_task = asyncio.create_task(check_nfc_card())
     
     await asyncio.gather(
         button_task,
         blink_task,
         rotary_task,
         poll_fx_controls_task,
-        interrupt_task
+        read_nfc_task
         )
     
-
 asyncio.run(main())
