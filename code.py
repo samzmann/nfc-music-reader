@@ -6,6 +6,8 @@ import keypad
 from effect_control import EffectControl
 from rotary_encoder import RotaryEncoder
 from main_display import MainDisplay
+from led_manager import LedManager, POSSIBLE_LED_STATES
+from nfc_reader import NfcReader
 
 # ##########################################################
 # ControllerData
@@ -106,16 +108,38 @@ async def blink(led):
             await asyncio.sleep(0)
 
 # ##########################################################
+# LED Manager
+#
+
+led_manager = LedManager()
+
+async def run_led_animations():
+    while True:
+        led_manager.animate()
+        await asyncio.sleep(0)
+
+# ##########################################################
 # NFC
 #
 
-from nfc_reader import NfcReader
+def on_card_detected():
+    print('change to live')
+    led_manager.transition(POSSIBLE_LED_STATES["LIVE"])
 
-nfcReader = NfcReader()
+def on_card_removed():
+    print('change to idle')
+    led_manager.transition(POSSIBLE_LED_STATES["IDLE"])
+
+
+nfcReader = NfcReader(
+    on_card_detected = on_card_detected,
+    on_card_removed = on_card_removed
+)
 
 async def check_nfc_card():
     while True:
         nfcReader.wait_for_card()
+        
         await asyncio.sleep(0)
 
 # ##########################################################
@@ -155,13 +179,15 @@ async def main():
     rotary_task = asyncio.create_task(rotary_listen(controllerData))
     poll_fx_controls_task = asyncio.create_task(poll_effect_controls(all_fx, controllerData))
     read_nfc_task = asyncio.create_task(check_nfc_card())
+    led_anim_task = asyncio.create_task(run_led_animations())
     
     await asyncio.gather(
         button_task,
         blink_task,
         rotary_task,
         poll_fx_controls_task,
-        read_nfc_task
+        read_nfc_task,
+        led_anim_task
         )
     
 asyncio.run(main())
