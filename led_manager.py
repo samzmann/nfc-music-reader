@@ -6,7 +6,7 @@ from adafruit_led_animation.animation.rainbowchase import RainbowChase
 
 from adafruit_led_animation.sequence import AnimationSequence
 
-from adafruit_led_animation.color import AMBER, PURPLE
+from adafruit_led_animation.color import AMBER, GREEN, PURPLE
 
 POSSIBLE_LED_STATES = {
     "IDLE": "IDLE",
@@ -35,20 +35,20 @@ class LedManager():
             pixel_order=neopixel.GRB
         )
 
-        self.pulse = Pulse(self.pixels, speed=0.05, color=AMBER, period=2)
+        self.pulse_amber = Pulse(self.pixels, speed=0.05, color=AMBER, period=2)
         self.comet_down = Comet(self.pixels, speed=0.5 / self.num_pixels, color=PURPLE, tail_length=5, bounce=False)
         self.comet_up = Comet(self.pixels, speed=0.5 / self.num_pixels, color=PURPLE, tail_length=5, bounce=False, reverse=True)
-        self.rainbow_chase = RainbowChase(self.pixels, speed=0.1, size=5, spacing=3)
+        self.pulse_green = Pulse(self.pixels, speed=0.05, color=GREEN, period=2)
 
         self.animation_seq = AnimationSequence(
-            self.pulse,
+            self.pulse_amber,
             self.comet_down,
             self.comet_up,
             auto_clear=True, auto_reset=True, advance_on_cycle_complete=True)
         
-        self.anim_idle = self.pulse
+        self.anim_idle = self.pulse_amber
         self.anim_transition = self.animation_seq
-        self.anim_live = self.rainbow_chase
+        self.anim_live = self.pulse_green
 
         self.anim_for_state = self.anim_idle
 

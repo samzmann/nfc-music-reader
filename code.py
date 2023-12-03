@@ -49,14 +49,12 @@ async def rotary_listen(controllerData: ControllerData):
         direction = rotaryEncoder.listenToRotation()
         
         if direction is not None:
-            print('on_rotate', direction)
             if direction == "CLOCKWISE":
                 controllerData.fx1_value = min(127, controllerData.fx1_value + 1)
             elif direction == "ANTICLOCKWISE":
                 controllerData.fx1_value = max(0, controllerData.fx1_value - 1)
             midi_messenger.send_instrument_fx1(controllerData.fx1_value)
             mainDisplay.set_text_area_value('fx_1', controllerData.fx1_value)
-            print('state.fx_val', controllerData.fx1_value)  
         await asyncio.sleep(0)
 
 # ##########################################################
@@ -73,7 +71,7 @@ async def poll_effect_controls(controllerData: ControllerData):
             controllerData.fx2_value = mapped_value
             midi_messenger.send_instrument_fx2(controllerData.fx2_value)
             mainDisplay.set_text_area_value('fx_2', controllerData.fx2_value)
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(0.1)
 
 # ##########################################################
 # LED Manager
@@ -91,14 +89,14 @@ async def run_led_animations():
 #
 
 def on_card_detected():
-    print('change to live')
-    led_manager.transition(POSSIBLE_LED_STATES["LIVE"])
     midi_messenger.send_instrument_on()
+    led_manager.transition(POSSIBLE_LED_STATES["LIVE"])
+    mainDisplay.set_text_area_value('state', "ON")
 
 def on_card_removed():
-    print('change to idle')
-    led_manager.transition(POSSIBLE_LED_STATES["IDLE"])
     midi_messenger.send_instrument_off()
+    led_manager.transition(POSSIBLE_LED_STATES["IDLE"])
+    mainDisplay.set_text_area_value('state', "OFF")
 
 
 nfcReader = NfcReader(
@@ -120,6 +118,10 @@ async def main():
     print('main() running')
 
     controllerData = ControllerData()
+
+    mainDisplay.set_text_area_value("state", "ON" if controllerData.instrument_on else "OFF")
+    mainDisplay.set_text_area_value("fx_1", controllerData.fx1_value)
+    mainDisplay.set_text_area_value("fx_1", controllerData.fx2_value)
 
     rotary_task = asyncio.create_task(rotary_listen(controllerData))
     poll_fx_controls_task = asyncio.create_task(poll_effect_controls(controllerData))
