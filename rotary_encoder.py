@@ -9,11 +9,13 @@ class RotaryEncoder():
         self.prevRotaryVal = 0
         self.prevButtonVal = None
 
-    def listenToRotation(self, onRotate):
+    def listenToRotation(self, ):
         if self.encoder.position is not self.prevRotaryVal:
             isRotatingClockwise = self.encoder.position > self.prevRotaryVal
-            onRotate(isRotatingClockwise)
             self.prevRotaryVal = self.encoder.position
+            return "CLOCKWISE" if isRotatingClockwise else "ANTICLOCKWISE"
+        else:
+            return None
 
 
 class RotaryEncoderWithButton():
