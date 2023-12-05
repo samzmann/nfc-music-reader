@@ -27,10 +27,11 @@ class NfcReader():
 
     def wait_for_card(self) -> str:
         if self.interrupt.count > 0:
+            print('must read card', self.interrupt.count)
             uid = self.pn532.get_passive_target()
             cardIdString = None
             if uid is not None:
-                # print("UID:", ''.join(hex(i) for i in uid))
+                print("UID:", ''.join(hex(i) for i in uid))
                 cardIdString = ''.join(hex(i) for i in uid)
                 if self.last_card_id is None:
                     self.on_card_detected()
@@ -38,7 +39,7 @@ class NfcReader():
             self.pn532.listen_for_passive_target()
             self.interrupt.reset()
             self.last_card_timestamp = time.monotonic()
-        elif time.monotonic() > self.last_card_timestamp + 1 and self.last_card_id is not None:
+        elif time.monotonic() > self.last_card_timestamp + 0.5 and self.last_card_id is not None:
             print(f'card {self.last_card_id} lost')
             self.last_card_id = None
             self.on_card_removed()

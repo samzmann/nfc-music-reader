@@ -44,15 +44,17 @@ rotaryEncoder = RotaryEncoder(
     board.GP14
 )
 
+FX_1_INCREMENT = 5
+
 async def rotary_listen(controllerData: ControllerData):        
     while True:
         direction = rotaryEncoder.listenToRotation()
         
         if direction is not None:
             if direction == "CLOCKWISE":
-                controllerData.fx1_value = min(127, controllerData.fx1_value + 1)
+                controllerData.fx1_value = min(127, controllerData.fx1_value + FX_1_INCREMENT)
             elif direction == "ANTICLOCKWISE":
-                controllerData.fx1_value = max(0, controllerData.fx1_value - 1)
+                controllerData.fx1_value = max(0, controllerData.fx1_value - FX_1_INCREMENT)
             midi_messenger.send_instrument_fx1(controllerData.fx1_value)
             mainDisplay.set_text_area_value('fx_1', controllerData.fx1_value)
         await asyncio.sleep(0)
