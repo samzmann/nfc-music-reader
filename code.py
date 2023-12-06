@@ -1,7 +1,7 @@
 import asyncio
 import board
-import digitalio
-import keypad
+import time
+from digitalio import DigitalInOut
 from adafruit_simplemath import map_range
 
 from effect_control import EffectControl
@@ -10,18 +10,7 @@ from main_display import MainDisplay
 from led_manager import LedManager, POSSIBLE_LED_STATES
 from nfc_reader import NfcReader
 from midi_messenger import MidiMessenger
-
-# ##########################################################
-# MIDI
-#
-
-midi_messenger = MidiMessenger()
-
-# ##########################################################
-# Display
-#
-
-mainDisplay = MainDisplay()
+from bpm_tracker import BPMTracker
 
 # ##########################################################
 # ControllerData
@@ -33,6 +22,52 @@ class ControllerData():
         self.instrument_on = False
         self.fx1_value = 100
         self.fx2_value = 100
+
+        self.led_on = False
+        self.led_turned_on = False
+        self.led_on_timestamp = 0
+
+# ##########################################################
+# MIDI
+#
+
+midi_messenger = MidiMessenger()
+bpm_tracker = BPMTracker()
+
+async def midi_listen(controllerData: ControllerData):
+    while True:
+        msg = midi_messenger.midi.receive()
+        if msg is not None:
+            print("Received:", msg, "at", time.monotonic())
+            if midi_messenger.is_timing_clock_event(msg):
+                bpm_tracker.add_timestamp(time.monotonic())
+                bpm = bpm_tracker.calculate_bpm()
+                print('bpm', bpm)
+                controllerData.led_on = True
+        await asyncio.sleep(0)
+
+async def blink_beat(controllerData: ControllerData):
+    led = DigitalInOut(board.GP25)
+    led.switch_to_output()
+
+    while True:
+        if controllerData.led_on and controllerData.led_turned_on == False:
+            led.value = 1
+            controllerData.led_turned_on = True
+            controllerData.led_on_timestamp = time.monotonic()
+        if controllerData.led_on and time.monotonic() > controllerData.led_on_timestamp + 0.1:
+            led.value = 0
+            controllerData.led_on = False
+            controllerData.led_turned_on = False
+        await asyncio.sleep(0)
+
+
+
+# ##########################################################
+# Display
+#
+
+mainDisplay = MainDisplay()
 
 
 # ##########################################################
@@ -129,12 +164,16 @@ async def main():
     poll_fx_controls_task = asyncio.create_task(poll_effect_controls(controllerData))
     read_nfc_task = asyncio.create_task(check_nfc_card())
     led_anim_task = asyncio.create_task(run_led_animations())
+    midi_listen_task = asyncio.create_task(midi_listen(controllerData))
+    blink_beat_task = asyncio.create_task(blink_beat(controllerData))
     
     await asyncio.gather(
         rotary_task,
         poll_fx_controls_task,
         read_nfc_task,
-        led_anim_task
+        led_anim_task,
+        midi_listen_task,
+        blink_beat_task
         )
     
 asyncio.run(main())

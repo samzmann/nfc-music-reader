@@ -1,6 +1,8 @@
 import usb_midi
 from adafruit_midi import MIDI
 from adafruit_midi.control_change import ControlChange
+from adafruit_midi.timing_clock import TimingClock
+
 
 CONTROL_ON_OFF = 1
 CONTROL_FX1 = 2
@@ -29,3 +31,9 @@ class MidiMessenger():
     
     def send_instrument_fx2(self, value: int):
         self.midi.send(ControlChange(CONTROL_FX2, value))
+
+    def is_timing_clock_event(self, midi_message):
+        if isinstance(midi_message, TimingClock):
+            return True
+        else:
+            return False
